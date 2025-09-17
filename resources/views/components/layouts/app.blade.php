@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $title ?? 'Aplikasi BukuPA' }}</title>
-    <script src="//unpkg.com/alpinejs" defer></script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
@@ -20,6 +19,7 @@
                 <ul class="flex space-x-4">
                     <li><a href="{{ route('dashboard') }}" class="hover:text-gray-200">Dashboard</a></li>
                     <li><a href="{{ route('pemeriksaan') }}" class="hover:text-gray-200">Pemeriksaan</a></li>
+                    <li><a href="{{ route('transaksi') }}" class="hover:text-gray-200">Transaksi</a></li>
                     <li><a href="{{ route('pasien') }}" class="hover:text-gray-200">Pasien</a></li>
                     <li><a href="{{ route('unit-asal') }}" class="hover:text-gray-200">Unit Asal</a></li>
                     <li>
@@ -101,7 +101,29 @@
             <div></div>
         </div>
     </footer>
+    <script>
+        async function syncTransaksi() {
+            try {
+                const res = await fetch("{{ route('transaksi.sync') }}");
+                const result = await res.json();
 
+                if (result.success) {
+                    console.log("Total data dari API:", result.total_api);
+                    console.log("Data baru ditambahkan:", result.inserted);
+                } else {
+                    console.error("Gagal sync:", result.error);
+                }
+            } catch (err) {
+                console.error("Fetch error:", err);
+            }
+        }
+
+        // Panggil saat halaman dibuka
+        syncTransaksi();
+
+        // Auto sync tiap 5 menit
+        setInterval(syncTransaksi, 5 * 60 * 1000);
+    </script>
     @livewireScripts
     @vite('resources/js/app.js')
 </body>
