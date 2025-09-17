@@ -108,21 +108,63 @@
                 const result = await res.json();
 
                 if (result.success) {
-                    console.log("Total data dari API:", result.total_api);
-                    console.log("Data baru ditambahkan:", result.inserted);
+                    console.log("[syncTransaksi] Total data dari API:", result.total_api);
+                    console.log("[syncTransaksi] Data baru ditambahkan:", result.inserted);
                 } else {
-                    console.error("Gagal sync:", result.error);
+                    console.error("[syncTransaksi] Gagal sync:", result.error);
                 }
             } catch (err) {
-                console.error("Fetch error:", err);
+                console.error("[syncTransaksi] Fetch error:", err);
             }
         }
 
-        // Panggil saat halaman dibuka
-        syncTransaksi();
+        async function syncPemeriksaan() {
+            try {
+                const response = await fetch(`/api/transaksi/recent`);
+                const transaksiList = await response.json();
 
-        // Auto sync tiap 5 menit
-        setInterval(syncTransaksi, 5 * 60 * 1000);
+                let updatedCount = 0;
+
+                for (const trx of transaksiList) {
+                    const res = await fetch(`/api/pemeriksaan/update-status`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute(
+                                "content")
+                        },
+                        body: JSON.stringify({
+                            norm: trx.norm,
+                            tanggal: trx.tanggal
+                        })
+                    });
+
+                    if (res.ok) {
+                        const result = await res.json();
+                        if (result.updated) updatedCount++;
+                    }
+                }
+
+                console.log(`[syncPemeriksaan] ${updatedCount} pemeriksaan berhasil diupdate`);
+            } catch (err) {
+                console.error("[syncPemeriksaan] Gagal:", err);
+            }
+        }
+
+        // Fungsi gabungan
+        async function runSync() {
+            console.log("=== Mulai proses sinkronisasi ===");
+            await syncTransaksi();
+            await syncPemeriksaan();
+            console.log("=== Selesai sinkronisasi ===");
+        }
+
+        // Panggil saat halaman dibuka
+        document.addEventListener("DOMContentLoaded", () => {
+            runSync();
+            // Auto sync tiap 5 menit
+            setInterval(runSync, 5 * 60 * 1000);
+        });
     </script>
     @livewireScripts
     @vite('resources/js/app.js')

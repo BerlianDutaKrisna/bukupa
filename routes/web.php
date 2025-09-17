@@ -20,7 +20,7 @@ use App\Livewire\UnitAsalCrud;
 */
 
 Route::get('/', function () {
-    return view('welcome');
+    return redirect()->route('login.show');
 });
 Route::get('/register', [AuthController::class, 'showRegister'])->name('register.show');
 Route::post('/register', [AuthController::class, 'register'])->name('register');

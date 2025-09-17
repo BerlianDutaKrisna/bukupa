@@ -42,4 +42,15 @@ class TransaksiSyncController extends Controller
             ], 500);
         }
     }
+
+    public function recent()
+    {
+        $today = now()->startOfDay();
+        $threeDaysAgo = now()->subDays(3)->startOfDay();
+
+        $data = Transaksi::whereBetween('tanggal', [$threeDaysAgo, $today])
+            ->get(['idtransaksi', 'norm', 'tanggal']); // ambil field penting saja
+
+        return response()->json($data);
+    }
 }
