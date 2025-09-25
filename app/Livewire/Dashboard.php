@@ -43,7 +43,7 @@ class Dashboard extends Component
         $this->loading = true;
 
         try {
-            // Cek di database lokal
+            // Cari di database lokal
             $pasien = Pasien::where('norm', $this->searchNorm)->get();
 
             if ($pasien->count() > 0) {
@@ -61,7 +61,7 @@ class Dashboard extends Component
                         $newPasien = Pasien::updateOrCreate(
                             ['norm' => $data['norm']],
                             [
-                                'idpasien' => null,
+                                'idpasien' => $data['id'] ?? null,
                                 'nik'      => $data['nik'] ?? null,
                                 'nama'     => $data['nama'] ?? null,
                                 'alamat'   => $data['alamat'] ?? null,
