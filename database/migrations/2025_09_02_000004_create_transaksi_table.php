@@ -12,10 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('transaksi', function (Blueprint $table) {
-            $table->id(); // id primary key autoincrement
-            $table->string('idtransaksi')->nullable();
-            $table->dateTime('tanggal')->nullable();
-            $table->bigInteger('idpasien')->nullable();
+            $table->id(); // id primary key auto-increment
+            $table->bigInteger('idtransaksi')->nullable()->index(); // ID transaksi dari API (bigint, nullable)
+            $table->dateTime('tanggal')->nullable(); // Tanggal transaksi
+            $table->foreignId('idpasien')->nullable()->constrained('pasien')->onDelete('set null'); // Relasi dengan pasien
             $table->string('norm')->nullable();
             $table->string('nama')->nullable();
             $table->date('tgl_lhr')->nullable();
@@ -23,25 +23,24 @@ return new class extends Migration
             $table->string('beratbadan')->nullable();
             $table->string('tinggibadan')->nullable();
             $table->text('alamat')->nullable();
-            $table->string('jeniskelamin')->nullable();
+            $table->enum('jeniskelamin', ['L', 'P'])->nullable(); // Jenis kelamin, enum L/P
             $table->string('kota')->nullable();
             $table->string('jenispasien')->nullable();
-            $table->bigInteger('iddokterperujuk')->nullable();
-            $table->string('dokterperujuk')->nullable();
-            $table->bigInteger('iddokterpa')->nullable();
-            $table->string('dokterpa')->nullable();
+            $table->string('dokterperujuk')->nullable();  // Nama dokter perujuk
+            $table->string('dokterpa')->nullable();  // Nama dokter PA
             $table->string('pelayananasal')->nullable();
-            $table->bigInteger('idunitasal')->nullable();
+            $table->foreignId('idunitasal')->nullable()->constrained('unit_asal')->onDelete('set null'); // Relasi dengan unit asal
             $table->string('unitasal')->nullable();
             $table->string('register')->nullable();
             $table->string('pemeriksaan')->nullable();
             $table->string('responsetime')->nullable();
-            $table->string('statuslokasi')->nullable();
-            $table->string('diagnosaklinik')->nullable();
-            $table->text('hasil')->nullable();
-            $table->string('diagnosapatologi')->nullable();
+            $table->string('statuslokasi', 100)->nullable(); // Status lokasi (varchar, panjang 100 karakter)
+            $table->text('diagnosaklinik')->nullable(); // Diagnosis klinik, menggunakan text untuk panjang
+            $table->text('hasil')->nullable(); // Hasil pemeriksaan
+            $table->text('diagnosapatologi')->nullable(); // Diagnosis patologi
             $table->string('mutusediaan')->nullable();
-            $table->timestamps();
+            $table->timestamps(); // created_at & updated_at
+            $table->softDeletes(); // Menambahkan SoftDeletes
         });
     }
 

@@ -4,15 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Transaksi extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;  // Menambahkan SoftDeletes jika diperlukan
 
-    // Nama tabel jika tidak mengikuti konvensi plural
-    protected $table = 'transaksi';
+    protected $table = 'transaksi';  // Nama tabel jika tidak mengikuti konvensi plural
 
-    // Kolom yang bisa diisi mass-assignment
     protected $fillable = [
         'idtransaksi',
         'tanggal',
@@ -27,8 +26,8 @@ class Transaksi extends Model
         'jeniskelamin',
         'kota',
         'jenispasien',
-        'iddokterperujuk',
-        'dokterperujuk',
+        'iddokterperujuk',  // ID Dokter Perujuk (bisa jadi optional)
+        'dokterperujuk',     // Nama Dokter Perujuk
         'iddokterpa',
         'dokterpa',
         'pelayananasal',
@@ -44,12 +43,53 @@ class Transaksi extends Model
         'mutusediaan',
     ];
 
-    // Field yang ingin disembunyikan jika serialisasi ke JSON
-    protected $hidden = [];
+    protected $hidden = [
+        // Kolom yang ingin disembunyikan saat serialisasi (misalnya ke JSON)
+    ];
 
-    // Casting tipe data jika perlu
     protected $casts = [
         'tanggal' => 'datetime',
         'tgl_lhr' => 'date',
     ];
+
+    /**
+     * Relasi ke tabel Pasien (Many-to-One).
+     */
+    public function pasien()
+    {
+        return $this->belongsTo(Pasien::class, 'idpasien');
+    }
+
+    /**
+     * Relasi ke unit asal (Many-to-One).
+     */
+    public function unitAsal()
+    {
+        return $this->belongsTo(UnitAsal::class, 'idunitasal');
+    }
+
+    /**
+     * Menambahkan mutator untuk idtransaksi jika diperlukan
+     */
+    public function setIdtransaksiAttribute($value)
+    {
+        $this->attributes['idtransaksi'] = strtoupper($value);  // Menjadikan ID transaksi dalam huruf besar
+    }
+
+    /**
+     * Contoh scope untuk transaksi yang belum dibayar
+     */
+    public function scopeUnpaid($query)
+    {
+        return $query->where('status', 'unpaid');
+    }
+
+    /**
+     * Menambahkan metode untuk memeriksa apakah dokter perujuk valid
+     */
+    public function isDokterPerujukValid()
+    {
+        // Cek apakah dokter perujuk sudah terisi dengan benar
+        return !empty($this->dokterperujuk);
+    }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Pemeriksaan;
 use App\Models\Pasien;
+use App\Models\Transaksi;
 use Carbon\Carbon;
 
 class PemeriksaanSyncController extends Controller
@@ -30,7 +31,22 @@ class PemeriksaanSyncController extends Controller
             ->first();
 
         if ($pemeriksaan) {
-            $pemeriksaan->update(['status' => 'Registered']);
+            // Cari transaksi berdasarkan norm & tanggal
+            $transaksi = Transaksi::where('norm', $norm)
+                ->whereDate('tanggal', $tanggal)
+                ->first();
+
+            $updateData = [
+                'status' => 'Registered',
+            ];
+
+            if ($transaksi) {
+                $updateData['diagnosa_klinik'] = $transaksi->diagnosaklinik ?? null;
+                $updateData['dokter_pengirim'] = $transaksi->dokterperujuk ?? null;
+            }
+
+            $pemeriksaan->update($updateData);
+
             return response()->json(['updated' => true]);
         }
 

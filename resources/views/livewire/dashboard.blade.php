@@ -10,9 +10,7 @@
 
     {{-- Input Search --}}
     <div class="flex gap-2">
-        <input type="text" id="searchNorm"
-            wire:model="searchNorm"
-            wire:keydown.enter="searchPasien"
+        <input type="text" id="searchNorm" wire:model="searchNorm" wire:keydown.enter="searchPasien"
             placeholder="Cari No RM pasien..."
             class="border p-2 w-full rounded focus:outline-none focus:ring-2 focus:ring-blue-400 flex-1" />
         <button wire:click="searchPasien"
@@ -24,67 +22,6 @@
     {{-- Loading Indicator --}}
     <div wire:loading class="text-blue-500 mt-2">
         Sedang mencari pasien...
-    </div>
-
-    {{-- Hasil Pencarian --}}
-    <div class="mt-4">
-        @if ($pasiens->count() > 0)
-            <div class="overflow-x-auto">
-                <table class="min-w-full border border-gray-300">
-                    <thead>
-                        <tr class="bg-gray-200 text-left">
-                            <th class="p-2 border">No RM</th>
-                            <th class="p-2 border">Nama</th>
-                            <th class="p-1 border w-24 whitespace-nowrap">Jenis Kelamin</th>
-                            <th class="p-2 border">Alamat</th>
-                            <th class="p-2 border">Tanggal Pemeriksaan</th>
-                            <th class="p-2 border">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($pasiens as $pasien)
-                            <tr class="hover:bg-gray-100">
-                                <td class="p-2 border">{{ $pasien->norm }}</td>
-                                <td class="p-2 border">{{ $pasien->nama ?? '-' }}</td>
-                                <td class="p-2 border text-center">{{ $pasien->jenkel ?? '-' }}</td>
-                                <td class="p-2 border">{{ $pasien->alamat ?? '-' }}</td>
-                                <td class="p-2 border">
-                                    <input type="date" wire:model="tanggalPemeriksaan.{{ $pasien->id }}"
-                                        class="w-full px-2 py-1 border border-gray-300 rounded-lg shadow-sm 
-                                        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                                        text-sm text-gray-700" />
-                                </td>
-                                <td class="p-2 border">
-                                    <button wire:click="tambahPemeriksaan({{ $pasien->id }})"
-                                        class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600">
-                                        Tambah Pemeriksaan
-                                    </button>
-                                </td>
-                            </tr>
-                            @if (isset($expanded[$pasien->id]))
-                                <tr>
-                                    <td colspan="6" class="p-2 border bg-gray-50">
-                                        <div class="grid grid-cols-2 gap-2 text-sm">
-                                            <div><strong>NIK:</strong> {{ $pasien->nik ?? '-' }}</div>
-                                            <div><strong>Alamat:</strong> {{ $pasien->alamat ?? '-' }}</div>
-                                            <div><strong>Kota:</strong> {{ $pasien->kota ?? '-' }}</div>
-                                            <div><strong>Jenis Kelamin:</strong>
-                                                {{ $pasien->jenkel == 'L' ? 'Laki-laki' : ($pasien->jenkel == 'P' ? 'Perempuan' : '-') }}
-                                            </div>
-                                            <div><strong>Tanggal Lahir:</strong> {{ $pasien->tgl_lhr ?? '-' }}</div>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @endif
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        @elseif($searchNorm)
-            <div class="text-red-500">
-                Pasien dengan No RM "{{ $searchNorm }}" tidak ditemukan.
-            </div>
-        @endif
     </div>
 
     {{-- Pemeriksaan Hari Ini --}}
@@ -100,9 +37,7 @@
 
     {{-- Pemeriksaan Semua --}}
     <div>
-        <h2 class="text-xl font-bold mt-8 mb-2">
-            Seluruh Pemeriksaan
-        </h2>
+        <h2 class="text-xl font-bold mt-8 mb-2">Seluruh Pemeriksaan</h2>
         @include('components.table-pemeriksaan-all', [
             'pemeriksaanAll' => $pemeriksaanAll,
             'editingStatusId' => $editingStatusId,
@@ -110,20 +45,35 @@
     </div>
 </div>
 
-{{-- Script Fokus Cursor --}}
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        const searchInput = document.getElementById("searchNorm");
-        if (searchInput) {
-            searchInput.focus();
-        }
-    });
+{{-- Tombol Upload Global --}}
+@if ($foto_unit_asal)
+    <div class="text-right my-3">
+        <button wire:click="uploadFoto" wire:loading.attr="disabled"
+            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm transition shadow-sm">
+            <span wire:loading.remove>Upload</span>
+            <svg wire:loading class="animate-spin w-4 h-4" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="white" stroke-width="3"
+                    stroke-opacity="0.25" fill="none"></circle>
+                <path d="M22 12a10 10 0 00-10-10" stroke="white" stroke-width="3" stroke-linecap="round"></path>
+            </svg>
+        </button>
+    </div>
+@endif
 
-    // Event dari Livewire (misalnya setelah tambah pemeriksaan)
-    window.addEventListener('focus-search', () => {
-        const searchInput = document.getElementById('searchNorm');
-        if (searchInput) {
-            searchInput.focus();
-        }
-    });
-</script>
+{{-- Modal Viewer Foto --}}
+@if ($viewerOpen)
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+        <div class="bg-white p-4 rounded-lg shadow-lg max-w-3xl w-full">
+            @if ($currentFoto)
+                <img src="{{ Storage::url($currentFoto) }}" alt="Foto Unit Asal"
+                    class="max-h-[70vh] mx-auto rounded">
+            @else
+                <p class="text-center text-gray-500">Belum ada foto diupload.</p>
+            @endif
+            <div class="mt-4 text-center">
+                <button wire:click="closeViewer"
+                    class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Tutup</button>
+            </div>
+        </div>
+    </div>
+@endif

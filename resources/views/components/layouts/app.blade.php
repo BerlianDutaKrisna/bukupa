@@ -108,10 +108,10 @@
                 const result = await res.json();
 
                 if (result.success) {
-                    console.log("[syncTransaksi] Total data dari API:", result.total_api);
-                    console.log("[syncTransaksi] Data baru ditambahkan:", result.inserted);
+                    console.log("[syncTransaksi] Total data dari API:", result.total_api ?? 0);
+                    console.log("[syncTransaksi] Data baru ditambahkan:", result.inserted ?? 0);
                 } else {
-                    console.error("[syncTransaksi] Gagal sync:", result.error);
+                    console.error("[syncTransaksi] Gagal sync:", result.error ?? "Unknown error");
                 }
             } catch (err) {
                 console.error("[syncTransaksi] Fetch error:", err);
@@ -126,12 +126,18 @@
                 let updatedCount = 0;
 
                 for (const trx of transaksiList) {
+                    // pastikan norm & tanggal tidak null
+                    if (!trx?.norm || !trx?.tanggal) {
+                        console.warn("[syncPemeriksaan] Lewati data invalid:", trx);
+                        continue;
+                    }
+
                     const res = await fetch(`/api/pemeriksaan/update-status`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
-                            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute(
-                                "content")
+                            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute(
+                                "content") ?? ""
                         },
                         body: JSON.stringify({
                             norm: trx.norm,
@@ -142,6 +148,8 @@
                     if (res.ok) {
                         const result = await res.json();
                         if (result.updated) updatedCount++;
+                    } else {
+                        console.warn("[syncPemeriksaan] Request gagal untuk trx:", trx);
                     }
                 }
 
@@ -162,8 +170,8 @@
         // Panggil saat halaman dibuka
         document.addEventListener("DOMContentLoaded", () => {
             runSync();
-            // Auto sync tiap 5 menit
-            setInterval(runSync, 5 * 60 * 1000);
+            // Auto sync tiap 2 menit
+            setInterval(runSync, 2 * 60 * 1000);
         });
     </script>
     @livewireScripts

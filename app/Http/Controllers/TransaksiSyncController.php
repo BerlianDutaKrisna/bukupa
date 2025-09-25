@@ -10,16 +10,32 @@ class TransaksiSyncController extends Controller
 {
     public function sync()
     {
-        $today = now()->format('Y-m-d');
-        $url = "http://172.20.29.240/apibdrs/apibdrs/getKunjunganPasien/{$today}";
+        $insertedCount = 0;
+
+        // Tanggal 3 hari terakhir
+        $startDate = now()->subDays(2)->format('Y-m-d');
+        $endDate   = now()->format('Y-m-d');
+
+        // Format: 2025-08-06-2025-08-07
+        $url = "http://172.20.29.240/apibdrs/apibdrs/getKunjunganPasien/{$startDate}/{$endDate}";
 
         try {
             $response = Http::withoutVerifying()->get($url);
+
+            if (!$response->successful()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => "Gagal memanggil API",
+                ], 500);
+            }
+
             $json = $response->json();
 
-            $insertedCount = 0;
+            $totalApi = 0;
 
-            if (isset($json['status']) && $json['status'] === "Ok") {
+            if (isset($json['status']) && $json['status'] === "Ok" && isset($json['data'])) {
+                $totalApi = count($json['data']);
+
                 foreach ($json['data'] as $item) {
                     $exists = Transaksi::where('idtransaksi', $item['idtransaksi'])->exists();
 
@@ -33,7 +49,8 @@ class TransaksiSyncController extends Controller
             return response()->json([
                 'success' => true,
                 'inserted' => $insertedCount,
-                'total_api' => $json['data'] ? count($json['data']) : 0,
+                'total_api' => $totalApi,
+                'range' => "{$startDate} s/d {$endDate}",
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -46,10 +63,10 @@ class TransaksiSyncController extends Controller
     public function recent()
     {
         $today = now()->startOfDay();
-        $threeDaysAgo = now()->subDays(3)->startOfDay();
+        $threeDaysAgo = now()->subDays(2)->startOfDay();
 
         $data = Transaksi::whereBetween('tanggal', [$threeDaysAgo, $today])
-            ->get(['idtransaksi', 'norm', 'tanggal']); // ambil field penting saja
+            ->get(['idtransaksi', 'norm', 'tanggal']);
 
         return response()->json($data);
     }

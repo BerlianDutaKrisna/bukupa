@@ -3,14 +3,17 @@
 namespace App\Livewire;
 
 use Livewire\Component;
-use App\Models\User;
+use Livewire\WithFileUploads;
 use App\Models\Pasien;
 use App\Models\Pemeriksaan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 
 class Dashboard extends Component
 {
+    use WithFileUploads;
+
     public string $appName = 'Dashboard Pasien';
     public string $searchNorm = '';
     public array $tanggalPemeriksaan = [];
@@ -20,6 +23,12 @@ class Dashboard extends Component
     public array $expanded = [];
     public bool $loading = false;
     public $editingStatusId = null;
+
+    // Foto & modal viewer
+    public $foto_unit_asal;
+    public bool $viewerOpen = false;
+    public $currentFoto;
+    public $pemeriksaanId;
 
     public function mount()
     {
@@ -43,18 +52,15 @@ class Dashboard extends Component
         $this->loading = true;
 
         try {
-            // Cari di database lokal
             $pasien = Pasien::where('norm', $this->searchNorm)->get();
 
             if ($pasien->count() > 0) {
                 $this->pasiens = $pasien;
             } else {
-                // Panggil API eksternal
                 $response = Http::timeout(5)->get("http://172.20.29.240/apibdrs/apibdrs/getPasien/{$this->searchNorm}");
 
                 if ($response->successful()) {
                     $json = $response->json();
-
                     if (isset($json['data']) && !empty($json['data'])) {
                         $data = $json['data'];
 
@@ -70,7 +76,6 @@ class Dashboard extends Component
                                 'tgl_lhr'  => $data['tgl_lhr'] ?? null,
                             ]
                         );
-
                         $this->pasiens = collect([$newPasien]);
                     } else {
                         $this->pasiens = collect();
@@ -110,25 +115,19 @@ class Dashboard extends Component
         $this->loadPemeriksaanHariIni();
         $this->loadPemeriksaanAll();
 
-        // Reset pencarian
         $this->searchNorm = '';
         $this->pasiens = collect([]);
-
-        // Set tanggal default lagi ke hari ini
         $this->tanggalPemeriksaan[$idPasien] = now()->toDateString();
 
         session()->flash('success', 'Pemeriksaan berhasil ditambahkan.');
-
-        // Kembalikan fokus ke input pencarian
         $this->dispatch('focus-search');
     }
 
     public function loadPemeriksaanHariIni()
     {
-        $this->pemeriksaan = Pemeriksaan::with(['pasien', 'user'])
+        $this->pemeriksaan = Pemeriksaan::with(['pasien', 'user.unitAsal'])
             ->whereDate('tanggal_pemeriksaan', now()->toDateString())
             ->get();
-
     }
 
     public function loadPemeriksaanAll()
@@ -146,54 +145,67 @@ class Dashboard extends Component
                     ->locale('id')
                     ->translatedFormat('l, d-m-Y');
             })
-            ->map(fn($group) => $group->map(fn($item) => $item->toArray()))
-            ->toArray();
+            ->map->all();
     }
 
     public function updateField($id, $field, $value)
     {
         $periksa = Pemeriksaan::find($id);
-
         if ($periksa && in_array($field, $periksa->getFillable())) {
-            $periksa->update([
-                $field => $value,
-            ]);
+            $periksa->update([$field => $value]);
         }
-
-        // Refresh data setelah update
         $this->loadPemeriksaanHariIni();
         $this->loadPemeriksaanAll();
-    }
-
-    public function setEditingStatus($id)
-    {
-        $this->editingStatusId = $id;
-    }
-
-    public function cancelEditingStatus()
-    {
-        $this->editingStatusId = null;
     }
 
     public function updateStatus($id, $value)
     {
         $periksa = Pemeriksaan::find($id);
-
-        if (! $periksa) {
-            return;
-        }
-
-        if (in_array('status', $periksa->getFillable())) {
+        if ($periksa && in_array('status', $periksa->getFillable())) {
             $periksa->update(['status' => $value]);
         }
-
-        // Refresh data
         $this->loadPemeriksaanHariIni();
         $this->loadPemeriksaanAll();
-
         $this->editingStatusId = null;
-
         session()->flash('success', 'Status berhasil diperbarui.');
+    }
+
+    // Foto
+    public function setPemeriksaan($id)
+    {
+        $this->pemeriksaanId = $id;
+    }
+
+    public function openViewer($id)
+    {
+        $this->pemeriksaanId = $id;
+        $pemeriksaan = Pemeriksaan::find($id);
+        $this->currentFoto = $pemeriksaan?->foto_unit_asal;
+        $this->viewerOpen = true;
+    }
+
+    public function closeViewer()
+    {
+        $this->viewerOpen = false;
+        $this->foto_unit_asal = null;
+    }
+
+    public function uploadFoto()
+    {
+        if ($this->pemeriksaanId && $this->foto_unit_asal) {
+            $path = $this->foto_unit_asal->store('foto_unit_asal', 'public');
+            $pemeriksaan = Pemeriksaan::find($this->pemeriksaanId);
+
+            if ($pemeriksaan) {
+                if ($pemeriksaan->foto_unit_asal && Storage::disk('public')->exists($pemeriksaan->foto_unit_asal)) {
+                    Storage::disk('public')->delete($pemeriksaan->foto_unit_asal);
+                }
+                $pemeriksaan->update(['foto_unit_asal' => $path]);
+                $this->currentFoto = $path;
+            }
+            $this->foto_unit_asal = null;
+            session()->flash('success', 'Foto berhasil diupload.');
+        }
     }
 
     public function render()
@@ -202,6 +214,10 @@ class Dashboard extends Component
             'pasiens'        => $this->pasiens ?? collect(),
             'pemeriksaan'    => $this->pemeriksaan ?? collect(),
             'pemeriksaanAll' => $this->pemeriksaanAll ?? collect(),
+            'editingStatusId' => $this->editingStatusId,
+            'foto_unit_asal' => $this->foto_unit_asal,
+            'viewerOpen'     => $this->viewerOpen,
+            'currentFoto'    => $this->currentFoto,
         ]);
     }
 }

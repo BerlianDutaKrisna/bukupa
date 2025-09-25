@@ -10,11 +10,12 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id(); // bigint unsigned auto_increment
-            $table->string('nama', 255);
-            $table->string('username', 255)->unique();
-            $table->string('password', 255);
-            $table->foreignId('id_unit_asal')->constrained('unit_asal')->onDelete('cascade');
+            $table->string('nama', 150); // Nama dengan panjang terbatas
+            $table->string('username', 255)->unique(); // Username unik
+            $table->text('password'); // Penyimpanan password dengan tipe text
+            $table->foreignId('id_unit_asal')->constrained('unit_asal')->onDelete('cascade'); // Relasi dengan unit_asal
             $table->timestamps(); // created_at & updated_at
+            $table->softDeletes(); // Menambahkan SoftDeletes
         });
     }
 

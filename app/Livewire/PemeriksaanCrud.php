@@ -5,16 +5,26 @@ namespace App\Livewire;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\Pemeriksaan;
+use Livewire\WithFileUploads;
+use Illuminate\Support\Facades\Storage;
 
 class PemeriksaanCrud extends Component
 {
-    use WithPagination;
+    use WithPagination, WithFileUploads;
+
+    public $foto_unit_asal = null;
+    public $viewerOpen = false;
+    public $currentFoto = null;
+    public $pemeriksaanId = null;
+    public $editingStatusId = null;
+    public $tanggalPemeriksaan = [];
+    public $expanded = [];
+
 
     public $search = '';
     public $perPage = 25;
 
     // Untuk create/update
-    public $pemeriksaanId;
     public $tanggal_pemeriksaan;
     public $status;
     public $status_lokasi;
@@ -24,19 +34,19 @@ class PemeriksaanCrud extends Component
 
     public function render()
     {
-        $query = Pemeriksaan::with(['pasien', 'user'])
-            ->when($this->search, function ($q) {
-                $q->whereHas('pasien', function ($pasien) {
-                    $pasien->where('nama', 'like', '%' . $this->search . '%')
-                        ->orWhere('norm', 'like', '%' . $this->search . '%');
-                });
-            })
-            ->orderBy('tanggal_pemeriksaan', 'desc');
+        // contoh query: ganti sesuai kebutuhanmu (filter tanggal, paginate, dsb.)
+        $pemeriksaan = \App\Models\Pemeriksaan::with(['pasien', 'user'])
+            ->whereDate('tanggal_pemeriksaan', now()->toDateString())
+            ->orderBy('tanggal_pemeriksaan', 'desc')
+            ->get();
 
-        $pemeriksaans = $query->paginate($this->perPage);
+        $pemeriksaanAll = \App\Models\Pemeriksaan::with(['pasien', 'user'])
+            ->orderBy('tanggal_pemeriksaan', 'desc')
+            ->get();
 
-        return view('livewire.pemeriksaan-crud', [
-            'pemeriksaans' => $pemeriksaans,
+        return view('livewire.dashboard', [
+            'pemeriksaan' => $pemeriksaan,
+            'pemeriksaanAll' => $pemeriksaanAll,
         ]);
     }
 
@@ -107,6 +117,51 @@ class PemeriksaanCrud extends Component
 
         session()->flash('success', 'Pemeriksaan berhasil diperbarui.');
         $this->resetInput();
+    }
+
+    public function setPemeriksaan($id)
+    {
+        $this->pemeriksaanId = $id;
+    }
+
+    public function openViewer($id)
+    {
+        $this->pemeriksaanId = $id;
+        $pemeriksaan = Pemeriksaan::findOrFail($id);
+
+        $this->currentFoto = $pemeriksaan->foto_unit_asal;
+        $this->viewerOpen = true;
+    }
+
+    public function closeViewer()
+    {
+        $this->viewerOpen = false;
+        $this->foto_unit_asal = null;
+    }
+
+    public function uploadFoto()
+    {
+        $this->validate([
+            'foto_unit_asal' => 'required|file|mimes:jpg,jpeg,png,webp,gif',
+        ]);
+
+        $pemeriksaan = Pemeriksaan::findOrFail($this->pemeriksaanId);
+
+        // hapus foto lama kalau ada
+        if ($pemeriksaan->foto_unit_asal && Storage::disk('public')->exists($pemeriksaan->foto_unit_asal)) {
+            Storage::disk('public')->delete($pemeriksaan->foto_unit_asal);
+        }
+
+        // simpan file baru
+        $path = $this->foto_unit_asal->store('foto_unit_asal', 'public');
+
+        // update database
+        $pemeriksaan->update([
+            'foto_unit_asal' => $path,
+        ]);
+
+        session()->flash('success', 'Foto berhasil diupload.');
+        $this->foto_unit_asal = null;
     }
 
     public function delete($id)

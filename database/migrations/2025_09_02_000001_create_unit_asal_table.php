@@ -9,8 +9,9 @@ return new class extends Migration {
     {
         Schema::create('unit_asal', function (Blueprint $table) {
             $table->id();
-            $table->string('nama')->index();
+            $table->string('nama')->index(); // Nama unit asal yang di-index
             $table->timestamps();
+            $table->softDeletes(); // Menambahkan SoftDeletes
         });
     }
 

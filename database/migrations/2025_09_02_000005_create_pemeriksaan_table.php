@@ -18,15 +18,20 @@ return new class extends Migration
             $table->text('diagnosa_klinik')->nullable();
             $table->string('dokter_pengirim')->nullable();
             $table->text('pesan_unit_asal')->nullable();
+            $table->string('foto_unit_asal', 255)->nullable(); // Path foto dengan panjang 255
             $table->string('nama_user_pa')->nullable();
             $table->text('pesan_pa')->nullable();
-            $table->string('status')->nullable();
+            $table->string('status', 50)->nullable()->index(); // Menggunakan varchar untuk status dengan index
             $table->timestamps();
 
             // Foreign keys
             $table->foreign('id_transaksi')->references('id')->on('transaksi')->onDelete('set null');
             $table->foreign('id_pasien')->references('id')->on('pasien')->onDelete('set null');
             $table->foreign('id_user')->references('id')->on('users')->onDelete('set null');
+
+            // Index untuk kolom foreign key
+            $table->index(['id_transaksi', 'id_pasien', 'id_user']); // Index pada foreign keys
+            $table->softDeletes(); // Menambahkan SoftDeletes
         });
     }
 

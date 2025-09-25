@@ -23,6 +23,7 @@ class Pemeriksaan extends Model
         'diagnosa_klinik',
         'dokter_pengirim',
         'pesan_unit_asal',
+        'foto_unit_asal',
         'nama_user_pa',
         'pesan_pa',
         'status',
