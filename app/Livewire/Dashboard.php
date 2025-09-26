@@ -9,7 +9,6 @@ use App\Models\Pemeriksaan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class Dashboard extends Component
@@ -26,10 +25,15 @@ class Dashboard extends Component
     public bool $loading = false;
     public $editingStatusId = null;
 
+    // Foto
     public $foto_unit_asal;
     public bool $viewerOpen = false;
     public $currentFoto;
     public $pemeriksaanId;
+
+    // Array khusus untuk binding input yang bisa langsung tersimpan
+    public array $pemeriksaanInput = [];
+    public array $pemeriksaanAllInput = [];
 
     public function mount()
     {
@@ -46,7 +50,7 @@ class Dashboard extends Component
     public function searchPasien()
     {
         $this->loading = true;
-        session()->forget('search_error'); // Clear previous error
+        session()->forget('search_error');
 
         if (empty($this->searchNorm)) {
             $this->pasiens = collect();
@@ -55,54 +59,36 @@ class Dashboard extends Component
         }
 
         try {
-            // Cek database lokal
             $pasien = Pasien::where('norm', $this->searchNorm)->get();
-
             if ($pasien->count() > 0) {
                 $this->pasiens = $pasien;
             } else {
-                // Ambil dari API eksternal
                 $response = Http::timeout(10)
                     ->get("http://172.20.29.240/apibdrs/apibdrs/getPasien/{$this->searchNorm}");
 
-                if ($response->successful()) {
-                    $json = $response->json();
-                    if (!empty($json['data'])) {
-                        $data = $json['data'];
-
-                        $newPasien = Pasien::updateOrCreate(
-                            ['norm' => $data['norm']],
-                            [
-                                'idpasien' => $data['id'] ?? null,
-                                'nik'      => $data['nik'] ?? null,
-                                'nama'     => $data['nama'] ?? null,
-                                'alamat'   => $data['alamat'] ?? null,
-                                'kota'     => $data['kota'] ?? null,
-                                'jenkel'   => $data['jenkel'] ?? null,
-                                'tgl_lhr'  => $data['tgl_lhr'] ?? null,
-                            ]
-                        );
-
-                        $this->pasiens = collect([$newPasien]);
-                    } else {
-                        $this->pasiens = collect();
-                        session()->flash('search_error', 'Pasien tidak ditemukan di API.');
-                        $this->dispatchBrowserEvent('console-log', ['message' => 'Pasien tidak ditemukan di API.']);
-                    }
+                if ($response->successful() && !empty($response->json()['data'])) {
+                    $data = $response->json()['data'];
+                    $newPasien = Pasien::updateOrCreate(
+                        ['norm' => $data['norm']],
+                        [
+                            'idpasien' => $data['id'] ?? null,
+                            'nik'      => $data['nik'] ?? null,
+                            'nama'     => $data['nama'] ?? null,
+                            'alamat'   => $data['alamat'] ?? null,
+                            'kota'     => $data['kota'] ?? null,
+                            'jenkel'   => $data['jenkel'] ?? null,
+                            'tgl_lhr'  => $data['tgl_lhr'] ?? null,
+                        ]
+                    );
+                    $this->pasiens = collect([$newPasien]);
                 } else {
                     $this->pasiens = collect();
-                    session()->flash('search_error', 'Gagal menghubungi API. Response code: ' . $response->status());
-                    $this->dispatchBrowserEvent('console-log', [
-                        'message' => 'searchPasien API failed, status: ' . $response->status() . ', norm: ' . $this->searchNorm
-                    ]);
+                    session()->flash('search_error', 'Pasien tidak ditemukan di API.');
                 }
             }
         } catch (\Exception $e) {
             $this->pasiens = collect();
             session()->flash('search_error', 'Terjadi error saat mencari pasien: ' . $e->getMessage());
-            $this->dispatchBrowserEvent('console-log', [
-                'message' => 'searchPasien Exception: ' . $e->getMessage() . ', norm: ' . $this->searchNorm
-            ]);
         } finally {
             $this->loading = false;
         }
@@ -121,7 +107,7 @@ class Dashboard extends Component
     {
         $tanggal = $this->tanggalPemeriksaan[$idPasien] ?? now()->toDateString();
 
-        Pemeriksaan::create([
+        $periksa = Pemeriksaan::create([
             'id_transaksi'        => null,
             'id_pasien'           => $idPasien,
             'id_user'             => Auth::id(),
@@ -129,13 +115,20 @@ class Dashboard extends Component
             'status'              => 'On Process',
         ]);
 
+        // Setup binding array untuk input auto-save
+        $this->pemeriksaanInput[$periksa->id] = [
+            'status_lokasi' => $periksa->status_lokasi,
+            'pesan_unit_asal' => $periksa->pesan_unit_asal,
+            'pesan_pa' => $periksa->pesan_pa,
+        ];
+
         $this->loadPemeriksaanHariIni();
         $this->loadPemeriksaanLain();
+
         $this->searchNorm = '';
         $this->pasiens = collect([]);
         $this->tanggalPemeriksaan[$idPasien] = now()->toDateString();
         session()->flash('success', 'Pemeriksaan berhasil ditambahkan.');
-        $this->dispatch('focus-search');
     }
 
     public function loadPemeriksaanHariIni()
@@ -143,6 +136,17 @@ class Dashboard extends Component
         $this->pemeriksaanHariIni = Pemeriksaan::with(['pasien', 'user.unitAsal'])
             ->whereDate('tanggal_pemeriksaan', now()->toDateString())
             ->get();
+
+        // Setup array binding untuk auto-save
+        foreach ($this->pemeriksaanHariIni as $periksa) {
+            if (!isset($this->pemeriksaanInput[$periksa->id])) {
+                $this->pemeriksaanInput[$periksa->id] = [
+                    'status_lokasi' => $periksa->status_lokasi,
+                    'pesan_unit_asal' => $periksa->pesan_unit_asal,
+                    'pesan_pa' => $periksa->pesan_pa,
+                ];
+            }
+        }
     }
 
     public function loadPemeriksaanLain()
@@ -157,16 +161,31 @@ class Dashboard extends Component
                     ->translatedFormat('l, d-m-Y');
             })
             ->map->all();
+
+        // Setup array input untuk auto-save
+        foreach ($this->pemeriksaanLain as $tanggal => $listPemeriksaan) {
+            foreach ($listPemeriksaan as $periksa) {
+                if (!isset($this->pemeriksaanAllInput[$periksa->id])) {
+                    $this->pemeriksaanAllInput[$periksa->id] = [
+                        'status_lokasi' => $periksa->status_lokasi,
+                        'pesan_unit_asal' => $periksa->pesan_unit_asal,
+                        'pesan_pa' => $periksa->pesan_pa,
+                    ];
+                }
+            }
+        }
     }
 
-    public function updateField($id, $field, $value)
+    // Auto-save saat blur
+    public function updateField($id, $field)
     {
         $periksa = Pemeriksaan::find($id);
-        if ($periksa && in_array($field, $periksa->getFillable())) {
-            $periksa->update([$field => $value]);
+        if ($periksa && isset($this->pemeriksaanInput[$id][$field])) {
+            $periksa->update([
+                $field => $this->pemeriksaanInput[$id][$field]
+            ]);
         }
         $this->loadPemeriksaanHariIni();
-        $this->loadPemeriksaanLain();
     }
 
     public function updateStatus($id, $value)
@@ -175,10 +194,24 @@ class Dashboard extends Component
         if ($periksa && in_array('status', $periksa->getFillable())) {
             $periksa->update(['status' => $value]);
         }
+
+        $this->editingStatusId = null;
+
         $this->loadPemeriksaanHariIni();
         $this->loadPemeriksaanLain();
-        $this->editingStatusId = null;
+
         session()->flash('success', 'Status berhasil diperbarui.');
+    }
+
+    public function updateFieldAll($id, $field)
+    {
+        $periksa = Pemeriksaan::find($id);
+        if ($periksa && isset($this->pemeriksaanAllInput[$id][$field])) {
+            $periksa->update([
+                $field => $this->pemeriksaanAllInput[$id][$field]
+            ]);
+        }
+        $this->loadPemeriksaanLain();
     }
 
     public function setPemeriksaan($id)
@@ -221,13 +254,14 @@ class Dashboard extends Component
     public function render()
     {
         return view('livewire.dashboard', [
-            'pasiens'             => $this->pasiens,
-            'pemeriksaan'         => $this->pemeriksaanHariIni,
-            'pemeriksaanAll'      => $this->pemeriksaanLain,
-            'editingStatusId'     => $this->editingStatusId,
-            'foto_unit_asal'      => $this->foto_unit_asal,
-            'viewerOpen'          => $this->viewerOpen,
-            'currentFoto'         => $this->currentFoto,
+            'pasiens' => $this->pasiens,
+            'pemeriksaan' => $this->pemeriksaanHariIni,
+            'pemeriksaanAll' => $this->pemeriksaanLain,
+            'editingStatusId' => $this->editingStatusId,
+            'foto_unit_asal' => $this->foto_unit_asal,
+            'viewerOpen' => $this->viewerOpen,
+            'currentFoto' => $this->currentFoto,
+            'pemeriksaanInput' => $this->pemeriksaanInput,
         ]);
     }
 }
