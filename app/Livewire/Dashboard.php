@@ -9,6 +9,8 @@ use App\Models\Pemeriksaan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class Dashboard extends Component
 {
@@ -18,13 +20,12 @@ class Dashboard extends Component
     public string $searchNorm = '';
     public array $tanggalPemeriksaan = [];
     public $pasiens;
-    public $pemeriksaan;
-    public $pemeriksaanAll;
+    public $pemeriksaanHariIni;
+    public $pemeriksaanLain;
     public array $expanded = [];
     public bool $loading = false;
     public $editingStatusId = null;
 
-    // Foto & modal viewer
     public $foto_unit_asal;
     public bool $viewerOpen = false;
     public $currentFoto;
@@ -33,35 +34,40 @@ class Dashboard extends Component
     public function mount()
     {
         $this->pasiens = collect([]);
-        $this->pemeriksaan = collect([]);
-        $this->pemeriksaanAll = collect([]);
+        $this->pemeriksaanHariIni = collect([]);
+        $this->pemeriksaanLain = collect([]);
         foreach (Pasien::all() as $pasien) {
             $this->tanggalPemeriksaan[$pasien->id] = now()->toDateString();
         }
         $this->loadPemeriksaanHariIni();
-        $this->loadPemeriksaanAll();
+        $this->loadPemeriksaanLain();
     }
 
     public function searchPasien()
     {
+        $this->loading = true;
+        session()->forget('search_error'); // Clear previous error
+
         if (empty($this->searchNorm)) {
             $this->pasiens = collect();
+            $this->loading = false;
             return;
         }
 
-        $this->loading = true;
-
         try {
+            // Cek database lokal
             $pasien = Pasien::where('norm', $this->searchNorm)->get();
 
             if ($pasien->count() > 0) {
                 $this->pasiens = $pasien;
             } else {
-                $response = Http::timeout(5)->get("http://172.20.29.240/apibdrs/apibdrs/getPasien/{$this->searchNorm}");
+                // Ambil dari API eksternal
+                $response = Http::timeout(10)
+                    ->get("http://172.20.29.240/apibdrs/apibdrs/getPasien/{$this->searchNorm}");
 
                 if ($response->successful()) {
                     $json = $response->json();
-                    if (isset($json['data']) && !empty($json['data'])) {
+                    if (!empty($json['data'])) {
                         $data = $json['data'];
 
                         $newPasien = Pasien::updateOrCreate(
@@ -76,16 +82,27 @@ class Dashboard extends Component
                                 'tgl_lhr'  => $data['tgl_lhr'] ?? null,
                             ]
                         );
+
                         $this->pasiens = collect([$newPasien]);
                     } else {
                         $this->pasiens = collect();
+                        session()->flash('search_error', 'Pasien tidak ditemukan di API.');
+                        $this->dispatchBrowserEvent('console-log', ['message' => 'Pasien tidak ditemukan di API.']);
                     }
                 } else {
                     $this->pasiens = collect();
+                    session()->flash('search_error', 'Gagal menghubungi API. Response code: ' . $response->status());
+                    $this->dispatchBrowserEvent('console-log', [
+                        'message' => 'searchPasien API failed, status: ' . $response->status() . ', norm: ' . $this->searchNorm
+                    ]);
                 }
             }
         } catch (\Exception $e) {
             $this->pasiens = collect();
+            session()->flash('search_error', 'Terjadi error saat mencari pasien: ' . $e->getMessage());
+            $this->dispatchBrowserEvent('console-log', [
+                'message' => 'searchPasien Exception: ' . $e->getMessage() . ', norm: ' . $this->searchNorm
+            ]);
         } finally {
             $this->loading = false;
         }
@@ -113,35 +130,29 @@ class Dashboard extends Component
         ]);
 
         $this->loadPemeriksaanHariIni();
-        $this->loadPemeriksaanAll();
-
+        $this->loadPemeriksaanLain();
         $this->searchNorm = '';
         $this->pasiens = collect([]);
         $this->tanggalPemeriksaan[$idPasien] = now()->toDateString();
-
         session()->flash('success', 'Pemeriksaan berhasil ditambahkan.');
         $this->dispatch('focus-search');
     }
 
     public function loadPemeriksaanHariIni()
     {
-        $this->pemeriksaan = Pemeriksaan::with(['pasien', 'user.unitAsal'])
+        $this->pemeriksaanHariIni = Pemeriksaan::with(['pasien', 'user.unitAsal'])
             ->whereDate('tanggal_pemeriksaan', now()->toDateString())
             ->get();
     }
 
-    public function loadPemeriksaanAll()
+    public function loadPemeriksaanLain()
     {
-        $this->pemeriksaan = Pemeriksaan::with(['pasien', 'user.unitAsal'])
-            ->whereDate('tanggal_pemeriksaan', now()->toDateString())
-            ->get();
-
-        $this->pemeriksaanAll = Pemeriksaan::with(['pasien', 'user.unitAsal'])
+        $this->pemeriksaanLain = Pemeriksaan::with(['pasien', 'user.unitAsal'])
             ->whereDate('tanggal_pemeriksaan', '!=', now()->toDateString())
             ->orderBy('tanggal_pemeriksaan', 'desc')
             ->get()
             ->groupBy(function ($item) {
-                return \Carbon\Carbon::parse($item->tanggal_pemeriksaan)
+                return Carbon::parse($item->tanggal_pemeriksaan)
                     ->locale('id')
                     ->translatedFormat('l, d-m-Y');
             })
@@ -155,7 +166,7 @@ class Dashboard extends Component
             $periksa->update([$field => $value]);
         }
         $this->loadPemeriksaanHariIni();
-        $this->loadPemeriksaanAll();
+        $this->loadPemeriksaanLain();
     }
 
     public function updateStatus($id, $value)
@@ -165,12 +176,11 @@ class Dashboard extends Component
             $periksa->update(['status' => $value]);
         }
         $this->loadPemeriksaanHariIni();
-        $this->loadPemeriksaanAll();
+        $this->loadPemeriksaanLain();
         $this->editingStatusId = null;
         session()->flash('success', 'Status berhasil diperbarui.');
     }
 
-    // Foto
     public function setPemeriksaan($id)
     {
         $this->pemeriksaanId = $id;
@@ -211,13 +221,13 @@ class Dashboard extends Component
     public function render()
     {
         return view('livewire.dashboard', [
-            'pasiens'        => $this->pasiens ?? collect(),
-            'pemeriksaan'    => $this->pemeriksaan ?? collect(),
-            'pemeriksaanAll' => $this->pemeriksaanAll ?? collect(),
-            'editingStatusId' => $this->editingStatusId,
-            'foto_unit_asal' => $this->foto_unit_asal,
-            'viewerOpen'     => $this->viewerOpen,
-            'currentFoto'    => $this->currentFoto,
+            'pasiens'             => $this->pasiens,
+            'pemeriksaan'         => $this->pemeriksaanHariIni,
+            'pemeriksaanAll'      => $this->pemeriksaanLain,
+            'editingStatusId'     => $this->editingStatusId,
+            'foto_unit_asal'      => $this->foto_unit_asal,
+            'viewerOpen'          => $this->viewerOpen,
+            'currentFoto'         => $this->currentFoto,
         ]);
     }
 }

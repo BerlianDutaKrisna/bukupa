@@ -23,6 +23,10 @@ class Pasien extends Model
         'tgl_lhr',
     ];
 
+    protected $casts = [
+        'tgl_lhr' => 'date',
+    ];
+
     /**
      * Relasi ke pemeriksaan (One-to-Many).
      */

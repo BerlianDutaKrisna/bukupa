@@ -8,10 +8,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Transaksi extends Model
 {
-    use HasFactory, SoftDeletes;  // Menambahkan SoftDeletes jika diperlukan
+    use HasFactory, SoftDeletes;
 
-    protected $table = 'transaksi';  // Nama tabel jika tidak mengikuti konvensi plural
+    protected $table = 'transaksi';
 
+    /**
+     * Kolom yang bisa diisi mass-assignment
+     */
     protected $fillable = [
         'idtransaksi',
         'tanggal',
@@ -26,8 +29,8 @@ class Transaksi extends Model
         'jeniskelamin',
         'kota',
         'jenispasien',
-        'iddokterperujuk',  // ID Dokter Perujuk (bisa jadi optional)
-        'dokterperujuk',     // Nama Dokter Perujuk
+        'iddokterperujuk',
+        'dokterperujuk',
         'iddokterpa',
         'dokterpa',
         'pelayananasal',
@@ -43,53 +46,11 @@ class Transaksi extends Model
         'mutusediaan',
     ];
 
-    protected $hidden = [
-        // Kolom yang ingin disembunyikan saat serialisasi (misalnya ke JSON)
-    ];
-
+    /**
+     * Casting tipe data
+     */
     protected $casts = [
         'tanggal' => 'datetime',
         'tgl_lhr' => 'date',
     ];
-
-    /**
-     * Relasi ke tabel Pasien (Many-to-One).
-     */
-    public function pasien()
-    {
-        return $this->belongsTo(Pasien::class, 'idpasien');
-    }
-
-    /**
-     * Relasi ke unit asal (Many-to-One).
-     */
-    public function unitAsal()
-    {
-        return $this->belongsTo(UnitAsal::class, 'idunitasal');
-    }
-
-    /**
-     * Menambahkan mutator untuk idtransaksi jika diperlukan
-     */
-    public function setIdtransaksiAttribute($value)
-    {
-        $this->attributes['idtransaksi'] = strtoupper($value);  // Menjadikan ID transaksi dalam huruf besar
-    }
-
-    /**
-     * Contoh scope untuk transaksi yang belum dibayar
-     */
-    public function scopeUnpaid($query)
-    {
-        return $query->where('status', 'unpaid');
-    }
-
-    /**
-     * Menambahkan metode untuk memeriksa apakah dokter perujuk valid
-     */
-    public function isDokterPerujukValid()
-    {
-        // Cek apakah dokter perujuk sudah terisi dengan benar
-        return !empty($this->dokterperujuk);
-    }
 }

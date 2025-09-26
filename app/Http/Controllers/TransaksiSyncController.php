@@ -12,11 +12,9 @@ class TransaksiSyncController extends Controller
     {
         $insertedCount = 0;
 
-        // Tanggal 3 hari terakhir
         $startDate = now()->subDays(2)->format('Y-m-d');
         $endDate   = now()->format('Y-m-d');
 
-        // Format: 2025-08-06-2025-08-07
         $url = "http://172.20.29.240/apibdrs/apibdrs/getKunjunganPasien/{$startDate}/{$endDate}";
 
         try {
@@ -30,7 +28,6 @@ class TransaksiSyncController extends Controller
             }
 
             $json = $response->json();
-
             $totalApi = 0;
 
             if (isset($json['status']) && $json['status'] === "Ok" && isset($json['data'])) {

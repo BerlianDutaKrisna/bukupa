@@ -1,4 +1,4 @@
-@props(['pemeriksaanAll','editingStatusId' => null])
+@props(['pemeriksaanAll', 'editingStatusId' => null])
 
 @foreach ($pemeriksaanAll as $tanggal => $listPemeriksaan)
     @php
@@ -29,10 +29,9 @@
         </thead>
         <tbody>
             @forelse ($listPemeriksaan as $index => $periksa)
-                <tr class="hover:bg-gray-100 align-top">
+                <tr wire:key="pemeriksaanAll-{{ $periksa->id }}" class="hover:bg-gray-100 align-top">
                     <td class="p-2 border">{{ $index + 1 }}</td>
 
-                    {{-- Pasien --}}
                     <td class="p-2 border">
                         <div>
                             <strong>{{ $periksa->pasien->nama ?? '-' }}
@@ -40,34 +39,29 @@
                             </strong>
                         </div>
                         <div class="text-sm text-gray-600">
-                            {{ $periksa->pasien->norm ?? '-' }} {{ $periksa->pasien->tgl_lhr ?? '-' }}
+                            {{ $periksa->pasien->norm ?? '-' }} {{ $periksa->pasien->tgl_lhr?->format('d-m-Y') ?? '-' }}
                         </div>
                         <div class="text-sm text-gray-500">{{ $periksa->pasien->alamat ?? '-' }}</div>
                     </td>
 
-                    {{-- Lokasi & Diagnosa --}}
                     <td class="p-2 border">
-                        <input type="text"
-                            wire:change="updateField({{ $periksa->id }}, 'status_lokasi', $event.target.value)"
+                        <input type="text" wire:model.lazy="pemeriksaanAll.{{ $periksa->id }}.status_lokasi"
                             value="{{ $periksa->status_lokasi }}" class="w-full border rounded p-1 mb-1"
                             placeholder="Lokasi" />
                         <div class="text-sm text-gray-700">{{ $periksa->diagnosa_klinik ?? '-' }}</div>
-                        <div class="text-sm text-gray-700"><strong>{{ $periksa->dokter_pengirim ?? '-' }}</strong></div>
+                        <div class="text-sm text-gray-700"><strong>{{ $periksa->dokter_pengirim ?? '-' }}</strong>
+                        </div>
                     </td>
 
-                    {{-- Unit Asal --}}
                     <td class="p-2 border">
                         <div>
                             {{ $periksa->user?->nama ?? '-' }}
                             ({{ $periksa->user?->unitAsal?->nama ?? '-' }})
                         </div>
-                        <input type="text"
-                            wire:change="updateField({{ $periksa->id }}, 'pesan_unit_asal', $event.target.value)"
-                            value="{{ $periksa->pesan_unit_asal }}" class="w-full border rounded p-1 mt-1 text-sm"
-                            placeholder="Pesan Unit Asal" />
+                        <input type="text" wire:model.lazy="pemeriksaanAll.{{ $periksa->id }}.pesan_unit_asal"
+                            class="w-full border rounded p-1 mt-1 text-sm" placeholder="Pesan Unit Asal" />
                     </td>
 
-                    {{-- Status --}}
                     <td class="p-2 border text-center align-middle">
                         <div class="flex items-center justify-center h-full">
                             @if ($editingStatusId === $periksa->id)
@@ -94,13 +88,11 @@
                         </div>
                     </td>
 
-                    {{-- Unit PA --}}
+
                     <td class="p-2 border">
                         <div>{{ $periksa->nama_user_pa ?? '-' }}</div>
-                        <input type="text"
-                            wire:change="updateField({{ $periksa->id }}, 'pesan_pa', $event.target.value)"
-                            value="{{ $periksa->pesan_pa }}" class="w-full border rounded p-1 mt-1 text-sm"
-                            placeholder="Pesan PA" />
+                        <input type="text" wire:model.lazy="pemeriksaanAll.{{ $periksa->id }}.pesan_pa"
+                            class="w-full border rounded p-1 mt-1 text-sm" placeholder="Pesan PA" />
                     </td>
                 </tr>
             @empty
